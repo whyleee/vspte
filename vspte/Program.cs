@@ -1,4 +1,5 @@
-﻿using EnvDTE;
+﻿using System.IO;
+using EnvDTE;
 using EnvDTE80;
 using Microsoft.VisualStudio.ExportTemplate;
 using System;
@@ -6,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using vspte.Com;
 using vspte.Export;
+using vspte.Vsix;
 
 namespace vspte
 {
@@ -14,14 +16,15 @@ namespace vspte
         [STAThread]
         static void Main(string[] args)
         {
-            if (args.Length != 2)
+            if (args.Length < 2)
             {
                 Console.WriteLine("Specify full .sln file path and project name to export the template");
                 Environment.Exit(0);
             }
 
-            var slnPath = args.First();
-            var projectName = args.Last();
+            var slnPath = args[0];
+            var projectName = args[1];
+            var vsix = args.Length > 2 && args[2] == "vsix";
 
             using (new MessageFilter())
             {
@@ -34,21 +37,46 @@ namespace vspte
                 Solution2 solution = null;
                 try
                 {
+                    Console.Write("Loading Visual Studio...");
                     dTE = (DTE2)Activator.CreateInstance(dteComClassName);
                     solution = (Solution2)dTE.Solution;
+                    Console.WriteLine(" OK");
+
+                    Console.Write("Loading solution...");
                     solution.Open(slnPath);
-                    var project = dTE.Solution.Projects.Cast<Project>().First(p => p.Name == projectName);
+                    Console.WriteLine(" OK");
+
+                    Console.Write("Exporting project template...");
+                    var project = solution.Projects.Cast<Project>().First(p => p.Name == projectName);
                     var wizard = new StandaloneTemplateWizardForm();
                     wizard.SetUserData("DTE", dTE);
                     wizard.SetUserData("IsProjectExport", true);
                     wizard.SetUserData("Project", project);
                     wizard.SetUserData("TemplateName", project.Name);
                     wizard.SetUserData("AutoImport", false);
+                    wizard.SetUserData("ExplorerOnZip", false);
 
                     //typeof(ExportTemplateWizard).GetMethod("GenProjectXMLFile", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(wizard, null);
                     //wizard.OnFinish();
                     var ok = wizard.GetProjectXMLFile();
-                    Console.WriteLine(ok ? "Project template is successfully exported" : "Error, project template is not exported");
+                    Console.WriteLine(ok ? " OK" : " FAIL");
+
+                    if (!ok)
+                    {
+                        Console.WriteLine("Finished with error");
+                        Environment.Exit(0);
+                    }
+
+                    if (vsix)
+                    {
+                        Console.Write("Creating VSIX package...");
+                        var vsixProject = solution.Projects.Cast<Project>().First(p => p.Name == "Package");
+                        var myDocsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                        var templateZipPath = Path.Combine(myDocsPath, "My Exported Templates", project.Name + ".zip");
+
+                        new VsixTemplateBuilder().Build(vsixProject, templateZipPath);
+                        Console.WriteLine(" OK");
+                    }
                 }
                 finally
                 {
@@ -61,6 +89,8 @@ namespace vspte
                         dTE.Quit();
                     }
                 }
+
+                Console.WriteLine("Everything is OK!");
             }
         }
     }
