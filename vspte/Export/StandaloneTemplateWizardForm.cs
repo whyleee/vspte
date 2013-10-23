@@ -17,7 +17,7 @@ namespace vspte.Export
     {
         private int m_uniqueID;
 
-        public bool GetProjectXMLFile()
+        public void GetProjectXMLFile()
         {
             XmlDocument xmlDocument = new XmlDocument();
             DTE dTE = (DTE)GetUserData("DTE");
@@ -138,7 +138,7 @@ namespace vspte.Export
             var xmlGenerationResult = MakeReplacements(true, true, true, rootNamespace, project.FullName, Path.Combine(text, text2));
             if (xmlGenerationResult != "OK")
             {
-                return false;
+                throw new InvalidOperationException("MakeReplacements finished with error");
             }
             xmlAttribute4.Value = fileName;
         IL_442:
@@ -151,10 +151,10 @@ namespace vspte.Export
             xmlAttribute6.Value = "true";
             xmlAttribute6 = xmlNode14.Attributes.Append(xmlAttribute6);
             //var xmlGenerationResult2 = typeof(TemplateWizardForm).GetMethod("WalkProject", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(this, new object[] { TemplateWizardForm.GetSccEnlistmentPathTranslation(dTE), vsProject, nameFromProject, text, "", project.ProjectItems, xmlDocument, xmlNode14, list, TemplateTypePage.IsWebProject(project) }).ToString();
-            var xmlGenerationResult2 = WalkProject(TemplateWizardForm.GetSccEnlistmentPathTranslation(dTE), vsProject, nameFromProject, text, "", project.ProjectItems, xmlDocument, xmlNode14, list, TemplateTypePage.IsWebProject(project));
+            var xmlGenerationResult2 = WalkProject(GetSccEnlistmentPathTranslation(dTE), vsProject, nameFromProject, text, "", project.ProjectItems, xmlDocument, xmlNode14, list, TemplateTypePage.IsWebProject(project));
             if (xmlGenerationResult2 != "OK")
             {
-                return false;
+                throw new InvalidOperationException("WalkProject finished with error");
             }
             typeof(TemplateWizardForm).GetMethod("SaveIcon", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(this, new object[] { text, xmlDocument, xmlNode2, list });
             //wizard.SaveIcon(text, xmlDocument, xmlNode2, list);
@@ -163,7 +163,10 @@ namespace vspte.Export
             xmlDocument.Save(Path.Combine(text, "MyTemplate.vstemplate"));
             list.Add("MyTemplate.vstemplate");
             var zipresult = typeof(TemplateWizardForm).GetMethod("ExportZipFiles", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(this, new object[] { false, project, text, list }).ToString();
-            return zipresult == "OK";
+            if (zipresult != "OK")
+            {
+                throw new InvalidOperationException("ExportZipFiles finished with error");
+            }
             //return wizard.ExportZipFiles(false, project, text, list);
         }
 

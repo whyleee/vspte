@@ -8,5 +8,5 @@
 [assembly: AssemblyCopyright("Copyright © Pavel Nezhencev 2013")]
 
 // Product version
-[assembly: AssemblyVersion("0.2")]
-[assembly: AssemblyFileVersion("0.2")]
+[assembly: AssemblyVersion("0.3")]
+[assembly: AssemblyFileVersion("0.3")]
