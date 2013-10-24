@@ -49,7 +49,7 @@ namespace vspte
             Log.WriteLine(" OK");
         }
 
-        public virtual void ExportTemplate(string projectName)
+        public virtual void ExportTemplate(string projectName, bool includeNuGetPackages)
         {
             Log.Write("Exporting project template...");
 
@@ -67,6 +67,7 @@ namespace vspte
             wizard.SetUserData("TemplateName", project.Name);
             wizard.SetUserData("AutoImport", false);
             wizard.SetUserData("ExplorerOnZip", false);
+            wizard.SetUserData("IncludeNuGetPackages", includeNuGetPackages);
 
             //typeof(ExportTemplateWizard)
             //    .GetMethod("GenProjectXMLFile", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -77,11 +78,11 @@ namespace vspte
             Log.WriteLine(" OK");
         }
 
-        public virtual void CreateVsix(string templateName)
+        public virtual void CreateVsix(string templateName, string vsixProjectName)
         {
             Log.Write("Creating VSIX package...");
 
-            var vsixProject = _dte.Solution.Projects.Cast<Project>().First(p => p.Name == "Package"); // TODO: hardcoded name
+            var vsixProject = _dte.Solution.Projects.Cast<Project>().First(p => p.Name == vsixProjectName);
             var myDocsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             var templateZipPath = Path.Combine(myDocsPath, "My Exported Templates", templateName + ".zip");
 

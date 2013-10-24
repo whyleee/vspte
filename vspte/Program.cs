@@ -19,11 +19,11 @@ namespace vspte
             using (var vs = VisualStudio.Create(logTo: Console.Out))
             {
                 vs.OpenSolution(options.SlnPath);
-                vs.ExportTemplate(options.ProjectName);
+                vs.ExportTemplate(options.ProjectName, options.IncludeNuGetPackages);
 
-                if (options.CreateVsix)
+                if (!string.IsNullOrEmpty(options.VsixProjectName))
                 {
-                    vs.CreateVsix(options.ProjectName);
+                    vs.CreateVsix(options.ProjectName, options.VsixProjectName);
                 }
             }
 
@@ -39,8 +39,11 @@ namespace vspte
         [Option('p', "project", Required = true, HelpText = "The name of a project for template export")]
         public string ProjectName { get; set; }
 
-        [Option('x', "vsix", HelpText = "Create VSIX package with project template")]
-        public bool CreateVsix { get; set; }
+        [Option("vsix", HelpText = "Create VSIX package with project template")]
+        public string VsixProjectName { get; set; }
+
+        [Option("nuget", HelpText = "Include NuGet packages to the project template")]
+        public bool IncludeNuGetPackages { get; set; }
 
         [HelpOption]
         public string GetUsage()

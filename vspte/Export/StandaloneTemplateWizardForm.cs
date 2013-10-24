@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -162,6 +163,27 @@ namespace vspte.Export
             //wizard.SavePreviewImage(text, xmlDocument, xmlNode2, list);
             xmlDocument.Save(Path.Combine(text, "MyTemplate.vstemplate"));
             list.Add("MyTemplate.vstemplate");
+            // NUGET
+            var includeNuGetPackages = (bool) GetUserData("IncludeNuGetPackages");
+            if (includeNuGetPackages)
+            {
+                var packagesDirPath = Path.Combine(Path.GetDirectoryName(dTE.Solution.FullName), "packages");
+                var nupkgs = Directory.GetFiles(packagesDirPath, "*.nupkg", SearchOption.AllDirectories);
+                foreach (var nupkg in nupkgs)
+                {
+                    var nupkgName = Path.GetFileName(nupkg);
+                    File.Copy(nupkg, Path.Combine(text, nupkgName));
+                    list.Add(nupkgName);
+                }
+            }
+            // ENDOF NUGET
+            // delete existing template
+            var templateZipPath = Path.Combine(GetExportedTemplatesDirectory(), (string) GetUserData("TemplateName") + ".zip");
+            if (File.Exists(templateZipPath))
+            {
+                File.Delete(templateZipPath);
+            }
+            // endof delete existing template
             var zipresult = typeof(TemplateWizardForm).GetMethod("ExportZipFiles", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(this, new object[] { false, project, text, list }).ToString();
             if (zipresult != "OK")
             {

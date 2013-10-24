@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -16,22 +17,31 @@ namespace vspte.Vsix
     public class VsixTemplateBuilder
     {
         private const string VSTEMPLATE_XMLNS = "http://schemas.microsoft.com/developer/vstemplate/2005";
+        private const string VSIX_XMLNS = "http://schemas.microsoft.com/developer/vsx-schema/2011";
+        private readonly XNamespace VSIX_DESIGN_XMLNS = "http://schemas.microsoft.com/developer/vsx-schema-design/2011";
+
+        private Project _vsixProject;
+        private string _vsixProjectDirPath;
+        private string _templateExtractPath;
 
         public void Build(Project vsixProject, string templateZipPath)
         {
             // unzip files in template
             var templateName = Path.GetFileNameWithoutExtension(templateZipPath);
-            var vsixProjectDirPath = Path.GetDirectoryName(vsixProject.FullName);
-            var templateExtractPath = Path.Combine(vsixProjectDirPath, templateName);
+            _vsixProject = vsixProject;
+            _vsixProjectDirPath = Path.GetDirectoryName(vsixProject.FullName);
+            _templateExtractPath = Path.Combine(_vsixProjectDirPath, templateName);
 
-            ZipFile.ExtractToDirectory(templateZipPath, templateExtractPath);
+            ZipFile.ExtractToDirectory(templateZipPath, _templateExtractPath);
 
             // include to vsix project
-            var rootVsixTemplateDirItem = vsixProject.ProjectItems.AddFromDirectory(templateExtractPath);
+            var rootVsixTemplateDirItem = vsixProject.ProjectItems.AddFromDirectory(_templateExtractPath);
             UpdateVsixItemProps(rootVsixTemplateDirItem);
             vsixProject.Save();
 
-            //AddNuGetPackages(templateExtractPath);
+            // Extensions
+            AddInstallScriptSupport();
+            AddNuGetPackages();
 
             // build
             var msbuildExe = Environment.ExpandEnvironmentVariables(@"%WINDIR%\Microsoft.NET\Framework\v4.0.30319\MSBuild.exe");
@@ -41,48 +51,143 @@ namespace vspte.Vsix
 
             // cleanup
             rootVsixTemplateDirItem.Remove();
+            CleanupInstallScriptSupport();
             vsixProject.Save();
-            Directory.Delete(templateExtractPath, recursive: true);
+            Directory.Delete(_templateExtractPath, recursive: true);
         }
 
         private void UpdateVsixItemProps(ProjectItem item)
         {
+            var isFile = item.Properties.Cast<Property>().Any(p => p.Name == "BuildAction");
+            if (isFile)
+            {
+                item.Properties.Item("BuildAction").Value = prjBuildAction.prjBuildActionContent;
+                item.Properties.Item("CopyToOutputDirectory").Value = (uint)__COPYTOOUTPUTSTATE.COPYTOOUTPUTSTATE_Always;
+                item.Properties.Item("VsixContentItemObjectExtender.IncludeInVSIX").Value = true;
+            }
+
             foreach (var subItem in item.ProjectItems.Cast<ProjectItem>())
             {
-                var isFile = subItem.Properties.Cast<Property>().Any(p => p.Name == "BuildAction");
-                if (isFile)
-                {
-                    subItem.Properties.Item("BuildAction").Value = prjBuildAction.prjBuildActionContent;
-                    subItem.Properties.Item("CopyToOutputDirectory").Value = (uint)__COPYTOOUTPUTSTATE.COPYTOOUTPUTSTATE_Always;
-                    subItem.Properties.Item("VsixContentItemObjectExtender.IncludeInVSIX").Value = true;
-                }
-
                 UpdateVsixItemProps(subItem);
             }
         }
 
-        private void AddNuGetPackages(string templateExtractPath)
+        private void AddInstallScriptSupport()
         {
-            // add nuget packages. NOTE: we're using nuget restore, so skip it for now.
-            var nugetPackagesConfigPath = Path.Combine(templateExtractPath, "packages.config");
+            var currentDirPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            var wizardsDllPath = Path.Combine(currentDirPath, "vspte.Wizards.dll");
+            var wizardsAssemblyName = AssemblyName.GetAssemblyName(wizardsDllPath).ToString();
+
+            // Add wizard extension to vstemplate
+            using (var vstemplate = Edit.Vstemplate(@in: _templateExtractPath))
+            {
+                var wizardExtension = new XElement("WizardExtension",
+                    new XElement("Assembly", wizardsAssemblyName),
+                    new XElement("FullClassName", "vspte.Wizards.RunInstallScriptWizard")
+                ).FixNamespace(VSTEMPLATE_XMLNS);
+
+                vstemplate.Doc.Root.Add(wizardExtension);
+            }
+
+            // Add wizard dll to project
+            var wizardDllItem = _vsixProject.ProjectItems.AddFromFile(wizardsDllPath);
+            UpdateVsixItemProps(wizardDllItem);
+            _vsixProject.Save();
+
+            // Add wizard dll as an asset to vsixmanifest
+            using (var vsixmanifest = Edit.Vsixmanifest(@in: _vsixProjectDirPath))
+            {
+                var wizardAsset = new XElement("Asset",
+                    new XAttribute("Type", "Microsoft.VisualStudio.Assembly"),
+                    new XAttribute(VSIX_DESIGN_XMLNS + "Source", "File"),
+                    new XAttribute("Path", "vspte.Wizards.dll"),
+                    new XAttribute("AssemblyName", wizardsAssemblyName)
+                ).FixNamespace(VSIX_XMLNS);
+
+                vsixmanifest.Doc.Root.Element(XName.Get("Assets", VSIX_XMLNS)).Add(wizardAsset);
+            }
+        }
+
+        private void CleanupInstallScriptSupport()
+        {
+            using (var vsixmanifest = Edit.Vsixmanifest(@in: _vsixProjectDirPath))
+            {
+                vsixmanifest.Doc.Root.Element(XName.Get("Assets", VSIX_XMLNS))
+                    .Elements(XName.Get("Asset", VSIX_XMLNS))
+                    .Where(e => e.Attribute("Type").Value == "Microsoft.VisualStudio.Assembly" &&
+                                e.Attribute("AssemblyName").Value.Contains("vspte.Wizards"))
+                    .Remove();
+            }
+
+            var wizardsDllItem = _vsixProject.ProjectItems.Cast<ProjectItem>()
+                .FirstOrDefault(item => item.Name == "vspte.Wizards.dll");
+
+            if (wizardsDllItem != null)
+            {
+                wizardsDllItem.Remove();
+            }
+        }
+
+        private void AddNuGetPackages()
+        {
+            // skip if there are no NuGet packages in the template
+            if (!Directory.GetFiles(_templateExtractPath, "*.nupkg").Any())
+            {
+                return;
+            }
+
+            // get installed packages xml
+            var nugetPackagesConfigPath = Path.Combine(_templateExtractPath, "packages.config");
             var nugetPackagesConfig = XDocument.Load(nugetPackagesConfigPath);
 
-            var vstemplatePath = Path.Combine(templateExtractPath, "MyTemplate.vstemplate");
-            var vstemplate = XDocument.Load(vstemplatePath);
-            var wizardExtension = XElement.Parse(
-@"<WizardExtension>
-    <Assembly>NuGet.VisualStudio.Interop, Version=1.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</Assembly>
-    <FullClassName>NuGet.VisualStudio.TemplateWizard</FullClassName>
-  </WizardExtension>").FixNamespace(VSTEMPLATE_XMLNS);
-            vstemplate.Root.Add(wizardExtension);
+            // add nuget wizard extention and data
+            using (var vstemplate = Edit.Vstemplate(@in: _templateExtractPath))
+            {
+                var wizardExtension = new XElement("WizardExtension",
+                    new XElement("Assembly", "NuGet.VisualStudio.Interop, Version=1.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a"),
+                    new XElement("FullClassName", "NuGet.VisualStudio.TemplateWizard")
+                ).FixNamespace(VSTEMPLATE_XMLNS);
 
-            var wizardData = new XElement("WizardData").FixNamespace(VSTEMPLATE_XMLNS);
-            wizardData.Add(nugetPackagesConfig.Root.FixNamespace(VSTEMPLATE_XMLNS));
-            vstemplate.Root.Add(wizardData);
+                var wizardData = new XElement("WizardData").FixNamespace(VSTEMPLATE_XMLNS);
+                nugetPackagesConfig.Root.Add(new XAttribute("repository", "template"));
+                wizardData.Add(nugetPackagesConfig.Root.FixNamespace(VSTEMPLATE_XMLNS)); // TODO: replace .NET versions
 
-            vstemplate.Save(vstemplatePath);
+                vstemplate.Doc.Root.Add(wizardExtension);
+                vstemplate.Doc.Root.Add(wizardData);
+            }
+        }
 
-            // TODO: not completed
+        private static class Edit
+        {
+            public static EditDoc Vstemplate(string @in)
+            {
+                var vstemplatePath = Path.Combine(@in, "MyTemplate.vstemplate");
+                return new EditDoc(XDocument.Load(vstemplatePath), vstemplatePath);
+            }
+
+            public static EditDoc Vsixmanifest(string @in)
+            {
+                var vsixmanifestPath = Path.Combine(@in, "source.extension.vsixmanifest");
+                return new EditDoc(XDocument.Load(vsixmanifestPath), vsixmanifestPath);
+            }
+        }
+
+        private class EditDoc : IDisposable
+        {
+            private readonly string _docLocation;
+
+            public XDocument Doc { get; private set; }
+
+            public EditDoc(XDocument doc, string location)
+            {
+                Doc = doc;
+                _docLocation = location;
+            }
+
+            public void Dispose()
+            {
+                Doc.Save(_docLocation);
+            }
         }
     }
 }
