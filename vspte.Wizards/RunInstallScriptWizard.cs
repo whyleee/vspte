@@ -9,6 +9,7 @@ namespace vspte.Wizards
 {
     public class RunInstallScriptWizard : IWizard
     {
+        private DTE _dte;
         private string _installScriptPath;
         private Dictionary<string, string> _replacements;
 
@@ -18,6 +19,7 @@ namespace vspte.Wizards
             WizardRunKind runKind,
             object[] customParams)
         {
+            _dte = (DTE) automationObject;
             _replacements = replacementsDictionary;
             var vstemplateDirPath = Path.GetDirectoryName((string) customParams[0]);
 
@@ -39,10 +41,17 @@ namespace vspte.Wizards
             var projectPath = _replacements["$destinationdirectory$"];
             System.Diagnostics.Process installer;
 
+            _dte.StatusBar.Text = "Running install script...";
+
             if (isPsScript)
             {
+#if DEBUG
+                var noExit = " -NoExit";
+#else
+                var noExit = "";
+#endif
                 var psCommand = string.Format(@"cd '{0}'; .\install.ps1", projectPath);
-                var psArgs = string.Format("-NoProfile -ExecutionPolicy Unrestricted -Command \"{0}\"", psCommand);
+                var psArgs = string.Format("-NoProfile{0} -ExecutionPolicy Unrestricted -Command \"{1}\"", noExit, psCommand);
                 var powershell = Environment.ExpandEnvironmentVariables(@"%SystemRoot%\SysNative\WindowsPowerShell\v1.0\powershell.exe");
                 installer = System.Diagnostics.Process.Start(powershell, psArgs);
             }
