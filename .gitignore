@@ -84,4 +84,5 @@ packages/*
 App_Data
 
 #vspte
+bin-*/
 !packages/Microsoft.VisualStudio.ExportTemplate/
