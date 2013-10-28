@@ -10,6 +10,7 @@ namespace vspte.Wizards
     public class RunInstallScriptWizard : IWizard
     {
         private string _installScriptPath;
+        private Dictionary<string, string> _replacements;
 
         public void RunStarted(
             object automationObject,
@@ -17,17 +18,17 @@ namespace vspte.Wizards
             WizardRunKind runKind,
             object[] customParams)
         {
+            _replacements = replacementsDictionary;
             var vstemplateDirPath = Path.GetDirectoryName((string) customParams[0]);
-            var extensionDirPath = Directory.GetParent(vstemplateDirPath).FullName;
 
-            _installScriptPath = Directory.EnumerateFiles(extensionDirPath)
+            _installScriptPath = Directory.EnumerateFiles(vstemplateDirPath)
                 .FirstOrDefault(filePath =>
                     filePath.EndsWith("install.cmd") ||
                     filePath.EndsWith("install.bat") ||
                     filePath.EndsWith("install.ps1"));
         }
 
-        public void ProjectFinishedGenerating(Project project)
+        public void RunFinished()
         {
             if (_installScriptPath == null)
             {
@@ -35,16 +36,20 @@ namespace vspte.Wizards
             }
 
             var isPsScript = _installScriptPath.EndsWith("ps1");
+            var projectPath = _replacements["$destinationdirectory$"];
             System.Diagnostics.Process installer;
 
             if (isPsScript)
             {
-                var args = string.Format("-NoProfile -ExecutionPolicy Unrestricted -File \"{0}\"", _installScriptPath);
-                installer = System.Diagnostics.Process.Start("powershell", args);
+                var psCommand = string.Format(@"cd '{0}'; .\install.ps1", projectPath);
+                var psArgs = string.Format("-NoProfile -ExecutionPolicy Unrestricted -Command \"{0}\"", psCommand);
+                var powershell = Environment.ExpandEnvironmentVariables(@"%SystemRoot%\SysNative\WindowsPowerShell\v1.0\powershell.exe");
+                installer = System.Diagnostics.Process.Start(powershell, psArgs);
             }
             else
             {
-                var args = string.Format("/C {0}", _installScriptPath);
+                // TODO: not tested yet
+                var args = string.Format("/C cd \"{0}\" & {1}", projectPath, Path.GetFileName(_installScriptPath));
                 installer = System.Diagnostics.Process.Start("cmd", args);
             }
 
@@ -55,9 +60,9 @@ namespace vspte.Wizards
         }
 
         // Not used
+        public void ProjectFinishedGenerating(Project project) {}
         public void ProjectItemFinishedGenerating(ProjectItem projectItem) {}
         public bool ShouldAddProjectItem(string filePath) {return true;}
         public void BeforeOpeningFile(ProjectItem projectItem) {}
-        public void RunFinished() {}
     }
 }

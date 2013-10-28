@@ -21,16 +21,17 @@ namespace vspte.Vsix
         private readonly XNamespace VSIX_DESIGN_XMLNS = "http://schemas.microsoft.com/developer/vsx-schema-design/2011";
 
         private Project _vsixProject;
+        private string _templateName;
         private string _vsixProjectDirPath;
         private string _templateExtractPath;
 
         public void Build(Project vsixProject, string templateZipPath)
         {
             // unzip files in template
-            var templateName = Path.GetFileNameWithoutExtension(templateZipPath);
+            _templateName = Path.GetFileNameWithoutExtension(templateZipPath);
             _vsixProject = vsixProject;
             _vsixProjectDirPath = Path.GetDirectoryName(vsixProject.FullName);
-            _templateExtractPath = Path.Combine(_vsixProjectDirPath, templateName);
+            _templateExtractPath = Path.Combine(_vsixProjectDirPath, _templateName);
 
             ZipFile.ExtractToDirectory(templateZipPath, _templateExtractPath);
 
@@ -53,7 +54,16 @@ namespace vspte.Vsix
             rootVsixTemplateDirItem.Remove();
             CleanupInstallScriptSupport();
             vsixProject.Save();
-            Directory.Delete(_templateExtractPath, recursive: true);
+            try
+            {
+                Directory.Delete(_templateExtractPath, recursive: true);
+            }
+            catch (IOException)
+            {
+                // could probably be locked by some other process for a while, try wait a second
+                System.Threading.Thread.Sleep(1000);
+                Directory.Delete(_templateExtractPath, recursive: true);
+            }
         }
 
         private void UpdateVsixItemProps(ProjectItem item)
@@ -110,6 +120,7 @@ namespace vspte.Vsix
 
         private void CleanupInstallScriptSupport()
         {
+            // remove wizards asset from vsixmanifest
             using (var vsixmanifest = Edit.Vsixmanifest(@in: _vsixProjectDirPath))
             {
                 vsixmanifest.Doc.Root.Element(XName.Get("Assets", VSIX_XMLNS))
@@ -119,6 +130,7 @@ namespace vspte.Vsix
                     .Remove();
             }
 
+            // remove wizards dll item
             var wizardsDllItem = _vsixProject.ProjectItems.Cast<ProjectItem>()
                 .FirstOrDefault(item => item.Name == "vspte.Wizards.dll");
 

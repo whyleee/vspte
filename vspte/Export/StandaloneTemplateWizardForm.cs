@@ -715,7 +715,11 @@ namespace vspte.Export
 		            ".c",
 		            ".inl",
 		            ".cshtml",
-		            ".vbhtml"
+		            ".vbhtml",
+                    // extended
+                    ".cmd",
+                    ".bat",
+                    ".ps1"
 	            };
             for (int i = 0; i < array.Length; i++)
             {
