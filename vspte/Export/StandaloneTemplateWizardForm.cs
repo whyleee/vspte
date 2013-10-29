@@ -62,6 +62,7 @@ namespace vspte.Export
             }
             var targetFramework = (string) project.Properties.Item("TargetFrameworkMoniker").Value;
             var frameworkVersion = targetFramework.Substring(targetFramework.IndexOf("Version=v") + "Version=v".Length);
+            var visualStudioVersion = dTE.Version;
             XmlNode xmlNode = xmlDocument.CreateElement("VSTemplate");
             XmlAttribute xmlAttribute = xmlDocument.CreateAttribute("Version");
             xmlAttribute.Value = "3.0.0";
@@ -138,7 +139,7 @@ namespace vspte.Export
             string fileName = Path.GetFileName(project.FullName);
             text2 = GetZipSafeName(fileName, text);
             //var xmlGenerationResult = typeof(TemplateWizardForm).GetMethod("MakeReplacements", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(wizard, new object[] {true, true, true, rootNamespace, project.FullName, Path.Combine(text, text2)}).ToString();
-            var xmlGenerationResult = MakeReplacements(true, true, true, rootNamespace, project.FullName, Path.Combine(text, text2), frameworkVersion);
+            var xmlGenerationResult = MakeReplacements(true, true, true, rootNamespace, project.FullName, Path.Combine(text, text2), frameworkVersion, visualStudioVersion);
             if (xmlGenerationResult != "OK")
             {
                 throw new InvalidOperationException("MakeReplacements finished with error");
@@ -154,7 +155,7 @@ namespace vspte.Export
             xmlAttribute6.Value = "true";
             xmlAttribute6 = xmlNode14.Attributes.Append(xmlAttribute6);
             //var xmlGenerationResult2 = typeof(TemplateWizardForm).GetMethod("WalkProject", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(this, new object[] { TemplateWizardForm.GetSccEnlistmentPathTranslation(dTE), vsProject, nameFromProject, text, "", project.ProjectItems, xmlDocument, xmlNode14, list, TemplateTypePage.IsWebProject(project) }).ToString();
-            var xmlGenerationResult2 = WalkProject(GetSccEnlistmentPathTranslation(dTE), vsProject, nameFromProject, text, "", project.ProjectItems, xmlDocument, xmlNode14, list, TemplateTypePage.IsWebProject(project), frameworkVersion);
+            var xmlGenerationResult2 = WalkProject(GetSccEnlistmentPathTranslation(dTE), vsProject, nameFromProject, text, "", project.ProjectItems, xmlDocument, xmlNode14, list, TemplateTypePage.IsWebProject(project), frameworkVersion, visualStudioVersion);
             if (xmlGenerationResult2 != "OK")
             {
                 throw new InvalidOperationException("WalkProject finished with error");
@@ -170,6 +171,7 @@ namespace vspte.Export
             if (includeNuGetPackages)
             {
                 var packagesDirPath = Path.Combine(Path.GetDirectoryName(dTE.Solution.FullName), "packages");
+                // TODO: will only work, if all NuGet packages installed locally
                 var nupkgs = Directory.GetFiles(packagesDirPath, "*.nupkg", SearchOption.AllDirectories);
                 foreach (var nupkg in nupkgs)
                 {
@@ -248,7 +250,7 @@ namespace vspte.Export
             return text;
         }
 
-        private string MakeReplacements(bool isAProject, bool creatingProject, bool fDoReplacements, string rootNamespace, string source, string dest, string frameworkVersion)
+        private string MakeReplacements(bool isAProject, bool creatingProject, bool fDoReplacements, string rootNamespace, string source, string dest, string frameworkVersion, string visualStudioVersion)
         {
             if (fDoReplacements)
             {
@@ -307,13 +309,29 @@ namespace vspte.Export
                             text3 = text3.Substring(0, num2);
                         }
                         text = WordReplace(text, text3, "$safeitemname$");
+                    }
 
-                        var loweredFileName = Path.GetFileName(source).ToLower();
-                        if (loweredFileName == "app.config" || loweredFileName == "web.config")
+                    var loweredFileName = Path.GetFileName(source).ToLower();
+                    var tfTemplate = "targetFramework=\"{0}\"";
+
+                    // CONFIGS
+                    if (loweredFileName == "app.config" || loweredFileName == "web.config")
+                    {
+                        text = WordReplace(text, string.Format(tfTemplate, frameworkVersion), string.Format(tfTemplate, "$targetframeworkversion$"));
+                    }
+                    // NUGET
+                    if (loweredFileName == "packages.config")
+                    {
+                        var includeNuGetPackages = (bool) GetUserData("IncludeNuGetPackages");
+                        if (includeNuGetPackages)
                         {
-                            var tfTemplate = "targetFramework=\"{0}\"";
-                            text = WordReplace(text, string.Format(tfTemplate, frameworkVersion), string.Format(tfTemplate, "$targetframeworkversion$"));
+                            text = WordReplace(text, string.Format(tfTemplate, "net" + frameworkVersion.Replace(".", "")), string.Format(tfTemplate, "$nugettargetframeworkversion$"));
                         }
+                    }
+                    // MSBUILD
+                    if (loweredFileName.EndsWith(".cmd") || loweredFileName.EndsWith(".bat") || loweredFileName.EndsWith(".ps1"))
+                    {
+                        text = WordReplace(text, "/p:VisualStudioVersion=" + visualStudioVersion, "/p:VisualStudioVersion=$visualstudioversion$");
                     }
                 }
                 //int num3 = (int)(num & 65535u);
@@ -367,7 +385,7 @@ namespace vspte.Export
             return "OK";
         }
 
-        private string WalkProject(IVsSccEnlistmentPathTranslation vsSccEnlistmentPathTranslation, IVsProject vsProject, string projectTypeString, string zipFileRoot, string zipLocalPath, ProjectItems projItems, XmlDocument xmlDoc, XmlNode xmlProjectContentsNode, List<string> accumulatedFiles, bool bIsWebProj, string frameworkVersion)
+        private string WalkProject(IVsSccEnlistmentPathTranslation vsSccEnlistmentPathTranslation, IVsProject vsProject, string projectTypeString, string zipFileRoot, string zipLocalPath, ProjectItems projItems, XmlDocument xmlDoc, XmlNode xmlProjectContentsNode, List<string> accumulatedFiles, bool bIsWebProj, string frameworkVersion, string visualStudioVersion)
         {
             var xmlGenerationResult = "OK";
             if (projItems != null)
@@ -392,7 +410,7 @@ namespace vspte.Export
                             xmlNode.Attributes.Append(xmlAttribute2);
                             string text3 = Path.Combine(zipLocalPath, zipSafeName);
                             Directory.CreateDirectory(Path.Combine(zipFileRoot, text3));
-                            xmlGenerationResult = this.WalkProject(vsSccEnlistmentPathTranslation, vsProject, projectTypeString, zipFileRoot, text3, projectItem.ProjectItems, xmlDoc, xmlNode, accumulatedFiles, bIsWebProj, frameworkVersion);
+                            xmlGenerationResult = this.WalkProject(vsSccEnlistmentPathTranslation, vsProject, projectTypeString, zipFileRoot, text3, projectItem.ProjectItems, xmlDoc, xmlNode, accumulatedFiles, bIsWebProj, frameworkVersion, visualStudioVersion);
                             if (xmlGenerationResult != "OK")
                             {
                                 break;
@@ -402,7 +420,7 @@ namespace vspte.Export
                         {
                             if (IsFileALink(vsSccEnlistmentPathTranslation, vsProject, projectItem))
                             {
-                                xmlGenerationResult = this.WalkProject(vsSccEnlistmentPathTranslation, vsProject, projectTypeString, zipFileRoot, zipLocalPath, projectItem.ProjectItems, xmlDoc, xmlProjectContentsNode, accumulatedFiles, bIsWebProj, frameworkVersion);
+                                xmlGenerationResult = this.WalkProject(vsSccEnlistmentPathTranslation, vsProject, projectTypeString, zipFileRoot, zipLocalPath, projectItem.ProjectItems, xmlDoc, xmlProjectContentsNode, accumulatedFiles, bIsWebProj, frameworkVersion, visualStudioVersion);
                                 if (xmlGenerationResult != "OK")
                                 {
                                     break;
@@ -450,12 +468,12 @@ namespace vspte.Export
                                     catch
                                     {
                                     }
-                                    xmlGenerationResult = this.MakeReplacements(false, true, fDoReplacements, rootNamespace, text2, Path.Combine(text, zipSafeName), frameworkVersion);
+                                    xmlGenerationResult = this.MakeReplacements(false, true, fDoReplacements, rootNamespace, text2, Path.Combine(text, zipSafeName), frameworkVersion, visualStudioVersion);
                                     if (xmlGenerationResult != "OK")
                                     {
                                         break;
                                     }
-                                    xmlGenerationResult = this.WalkProject(vsSccEnlistmentPathTranslation, vsProject, projectTypeString, zipFileRoot, zipLocalPath, projectItem.ProjectItems, xmlDoc, xmlProjectContentsNode, accumulatedFiles, bIsWebProj, frameworkVersion);
+                                    xmlGenerationResult = this.WalkProject(vsSccEnlistmentPathTranslation, vsProject, projectTypeString, zipFileRoot, zipLocalPath, projectItem.ProjectItems, xmlDoc, xmlProjectContentsNode, accumulatedFiles, bIsWebProj, frameworkVersion, visualStudioVersion);
                                     if (xmlGenerationResult != "OK")
                                     {
                                         break;

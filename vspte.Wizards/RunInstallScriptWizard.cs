@@ -28,6 +28,13 @@ namespace vspte.Wizards
                     filePath.EndsWith("install.cmd") ||
                     filePath.EndsWith("install.bat") ||
                     filePath.EndsWith("install.ps1"));
+
+            // VS version
+            _replacements.Add("$visualstudioversion$", _dte.Version);
+
+            // NuGet support
+            var targetFramework = _replacements["$targetframeworkversion$"];
+            _replacements.Add("$nugettargetframeworkversion$", "net" + targetFramework.Replace(".", ""));
         }
 
         public void RunFinished()
