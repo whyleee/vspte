@@ -41,6 +41,7 @@ namespace vspte.Vsix
             vsixProject.Save();
 
             // Extensions
+            AddCustomWizards();
             AddInstallScriptSupport();
             AddNuGetPackages();
 
@@ -79,6 +80,32 @@ namespace vspte.Vsix
             foreach (var subItem in item.ProjectItems.Cast<ProjectItem>())
             {
                 UpdateVsixItemProps(subItem);
+            }
+        }
+
+        private void AddCustomWizards()
+        {
+            var vsixmanifest = Read.Vsixmanifest(@in: _vsixProjectDirPath);
+            var wizardAssets = vsixmanifest.Doc.Root
+                .Element(XName.Get("Assets", VSIX_XMLNS))
+                .Elements(XName.Get("Asset", VSIX_XMLNS))
+                .Where(e => e.Attribute("Type").Value == "Microsoft.VisualStudio.Assembly")
+                .ToList();
+
+            if (wizardAssets.Any())
+            {
+                using (var vstemplate = Edit.Vstemplate(@in: _templateExtractPath))
+                {
+                    foreach (var asset in wizardAssets)
+                    {
+                        var wizardExtension = new XElement("WizardExtension",
+                            new XElement("Assembly", asset.Attribute("AssemblyName").Value),
+                            new XElement("FullClassName", asset.Attribute("WizardClass").Value)
+                        ).FixNamespace(VSTEMPLATE_XMLNS);
+
+                        vstemplate.Doc.Root.Add(wizardExtension);
+                    }
+                }
             }
         }
 
@@ -162,10 +189,25 @@ namespace vspte.Vsix
 
                 var wizardData = new XElement("WizardData").FixNamespace(VSTEMPLATE_XMLNS);
                 nugetPackagesConfig.Root.Add(new XAttribute("repository", "template"));
-                wizardData.Add(nugetPackagesConfig.Root.FixNamespace(VSTEMPLATE_XMLNS)); // TODO: replace .NET versions
+                wizardData.Add(nugetPackagesConfig.Root.FixNamespace(VSTEMPLATE_XMLNS));
 
                 vstemplate.Doc.Root.Add(wizardExtension);
                 vstemplate.Doc.Root.Add(wizardData);
+            }
+        }
+
+        private static class Read
+        {
+            public static ViewDoc Vstemplate(string @in)
+            {
+                var vstemplatePath = Path.Combine(@in, "MyTemplate.vstemplate");
+                return new ViewDoc(XDocument.Load(vstemplatePath), vstemplatePath);
+            }
+
+            public static ViewDoc Vsixmanifest(string @in)
+            {
+                var vsixmanifestPath = Path.Combine(@in, "source.extension.vsixmanifest");
+                return new ViewDoc(XDocument.Load(vsixmanifestPath), vsixmanifestPath);
             }
         }
 
@@ -173,32 +215,36 @@ namespace vspte.Vsix
         {
             public static EditDoc Vstemplate(string @in)
             {
-                var vstemplatePath = Path.Combine(@in, "MyTemplate.vstemplate");
-                return new EditDoc(XDocument.Load(vstemplatePath), vstemplatePath);
+                return new EditDoc(Read.Vstemplate(@in));
             }
 
             public static EditDoc Vsixmanifest(string @in)
             {
-                var vsixmanifestPath = Path.Combine(@in, "source.extension.vsixmanifest");
-                return new EditDoc(XDocument.Load(vsixmanifestPath), vsixmanifestPath);
+                return new EditDoc(Read.Vsixmanifest(@in));
             }
         }
 
-        private class EditDoc : IDisposable
+        private class ViewDoc
         {
-            private readonly string _docLocation;
-
             public XDocument Doc { get; private set; }
 
-            public EditDoc(XDocument doc, string location)
+            public string Location { get; set; }
+
+            public ViewDoc(XDocument doc, string location)
             {
                 Doc = doc;
-                _docLocation = location;
+                Location = location;
             }
+        }
+
+        private class EditDoc : ViewDoc, IDisposable
+        {
+            public EditDoc(XDocument doc, string location) : base(doc, location) {}
+            public EditDoc(ViewDoc doc) : base(doc.Doc, doc.Location) {}
 
             public void Dispose()
             {
-                Doc.Save(_docLocation);
+                Doc.Save(Location);
             }
         }
     }
