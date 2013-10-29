@@ -29,12 +29,19 @@ namespace vspte.Wizards
                     filePath.EndsWith("install.bat") ||
                     filePath.EndsWith("install.ps1"));
 
-            // VS version
+            // VS versions
             _replacements.Add("$visualstudioversion$", _dte.Version);
+            _replacements.Add("$toolsversion$", GetToolsVersion(_dte.Version));
 
             // NuGet support
             var targetFramework = _replacements["$targetframeworkversion$"];
             _replacements.Add("$nugettargetframeworkversion$", "net" + targetFramework.Replace(".", ""));
+        }
+
+        private string GetToolsVersion(string vsVersion)
+        {
+            if (vsVersion == "11.0" || vsVersion == "10.0") return "4.0";
+            return vsVersion;
         }
 
         public void RunFinished()
@@ -57,7 +64,7 @@ namespace vspte.Wizards
 #else
                 var noExit = "";
 #endif
-                var psCommand = string.Format(@"cd '{0}'; .\install.ps1", projectPath);
+                var psCommand = string.Format(@"$VSVersion='{0}'; cd '{1}'; .\install.ps1", _dte.Version, projectPath);
                 var psArgs = string.Format("-NoProfile{0} -ExecutionPolicy Unrestricted -Command \"{1}\"", noExit, psCommand);
                 var powershell = Environment.ExpandEnvironmentVariables(@"%SystemRoot%\SysNative\WindowsPowerShell\v1.0\powershell.exe");
                 installer = System.Diagnostics.Process.Start(powershell, psArgs);

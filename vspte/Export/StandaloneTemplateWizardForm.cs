@@ -282,6 +282,7 @@ namespace vspte.Export
                         text = text.Replace("<XapFilename>" + rootNamespace + ".", "<XapFilename>$safeprojectname$.");
                         text = text.Replace("<SilverlightAppEntry>" + rootNamespace + ".", "<SilverlightAppEntry>$safeprojectname$.");
                         text = text.Replace("<TargetFrameworkVersion>v" + frameworkVersion + "</TargetFrameworkVersion>", "<TargetFrameworkVersion>v$targetframeworkversion$</TargetFrameworkVersion>");
+                        text = text.Replace("<Project ToolsVersion=\"" + GetToolsVersion(visualStudioVersion) + "\"", "<Project ToolsVersion=\"$toolsversion$\"");
                     }
                 }
                 else
@@ -383,6 +384,12 @@ namespace vspte.Export
                 //}
             }
             return "OK";
+        }
+
+        private string GetToolsVersion(string vsVersion)
+        {
+            if (vsVersion == "11.0" || vsVersion == "10.0") return "4.0";
+            return vsVersion;
         }
 
         private string WalkProject(IVsSccEnlistmentPathTranslation vsSccEnlistmentPathTranslation, IVsProject vsProject, string projectTypeString, string zipFileRoot, string zipLocalPath, ProjectItems projItems, XmlDocument xmlDoc, XmlNode xmlProjectContentsNode, List<string> accumulatedFiles, bool bIsWebProj, string frameworkVersion, string visualStudioVersion)
