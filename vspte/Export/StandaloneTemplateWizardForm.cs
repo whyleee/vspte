@@ -107,6 +107,9 @@ namespace vspte.Export
             XmlNode xmlNode12 = xmlDocument.CreateElement("EnableLocationBrowseButton");
             xmlNode12.InnerText = "true";
             xmlNode12 = xmlNode2.AppendChild(xmlNode12);
+            XmlNode xmlNode12a = xmlDocument.CreateElement("CreateInPlace");
+            xmlNode12a.InnerText = "true";
+            xmlNode12a = xmlNode2.AppendChild(xmlNode12a);
             XmlNode xmlNode13 = xmlDocument.CreateElement("TemplateContent");
             xmlNode13 = xmlNode.AppendChild(xmlNode13);
             XmlNode xmlNode14 = xmlDocument.CreateElement("Project");
