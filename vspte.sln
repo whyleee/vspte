@@ -17,6 +17,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		build-release-2012.ps1 = build-release-2012.ps1
 		build-release-2013.ps1 = build-release-2013.ps1
 		SolutionInfo.cs = SolutionInfo.cs
+		vspte.0.5.nuspec = vspte.0.5.nuspec
+		vspte.vs2012.0.5.nuspec = vspte.vs2012.0.5.nuspec
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vspte.Wizards", "vspte.Wizards\vspte.Wizards.csproj", "{28A577C5-152C-4DF7-A7FA-176B0D46F053}"

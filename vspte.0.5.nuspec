@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
+    <metadata>
+        <id>vspte</id>
+        <version>0.5</version>
+        <title>Visual Studio Project Template Exporter</title>
+        <authors>Pavel Nezhencev</authors>
+        <owners>Pavel Nezhencev</owners>
+        <projectUrl>https://github.com/whyleee/vspte</projectUrl>
+        <requireLicenseAcceptance>false</requireLicenseAcceptance>
+        <description>Command-line tool to generate Visual Studio project templates and package them into VSIX.
+
+Works only with Visual Studio 2013. Use "vspte.vs2012" package with Visual Studio 2012.</description>
+        <summary />
+        <releaseNotes>- Target .NET framework replacement support
+- Custom wizards deployment support
+- Fixed project items as links with relative paths</releaseNotes>
+        <tags>vstemplate vsix automation nuget installation</tags>
+    </metadata>
+    <files>
+        <file src="bin-2013\vspte.exe" target="vspte.exe" />
+        <file src="bin-2013\vspte.exe.config" target="vspte.exe.config" />
+        <file src="bin-2013\vspte.Wizards.dll" target="vspte.Wizards.dll" />
+    </files>
+</package>
