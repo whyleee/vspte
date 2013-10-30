@@ -32,7 +32,7 @@ namespace vspte
 
             vs._messageFilter = new MessageFilter();
 
-            var dteComClassName = Type.GetTypeFromProgID("VisualStudio.DTE.12.0", true); // TODO: without version?
+            var dteComClassName = Type.GetTypeFromProgID("VisualStudio.DTE", true);
             vs._dte = (DTE) Activator.CreateInstance(dteComClassName);
 
             vs.Log.WriteLine(" OK");
