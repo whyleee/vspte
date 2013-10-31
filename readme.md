@@ -10,17 +10,11 @@ Features
 In addition to project template generation, the tool provides next features:
 
  - **VSIX support**: generates VSIX package, for one-click install your project template into Visual Studio as an extension.
- 
  - **NuGet support**: includes all project NuGet packages to auto-install them during project creation.
- 
  - **Install scripts support**: runs install.ps1 or install.cmd scripts during project creation (yyep, like lovely NuGet feature!).
- 
  - **Custom wizards support**: adds your wizards to the package and calls them during project creation.
- 
  - **Different .NET and VS support**: automatically replaces .NET and VS versions in the target project according to user's selection.
- 
  - **Small fixes for template generation**: project items as links with relative paths support, .ps1/.cmd file replacements etc.
- 
  - **Deployed via NuGet**.
 
 
