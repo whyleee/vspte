@@ -24,8 +24,8 @@ In addition to project template generation, the tool provides next features:
  - **Deployed via NuGet**.
 
 
-Download
---------
+Installation
+------------
 
 Install via NuGet (Visual Studio 2013):
 
@@ -34,6 +34,8 @@ Install via NuGet (Visual Studio 2013):
 Or if you're using Visual Studio 2012:
 
     Install-Package vspte.vs2012
+
+Of [download the tool](https://github.com/whyleee/vspte/releases) from GitHub releases section.
 
 
 Example of usage
